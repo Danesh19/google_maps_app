@@ -1,10 +1,15 @@
 import 'dart:async';
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:google_map_app/constants.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:location/location.dart';
+import 'package:location/location.dart' as loc;
+import 'package:geocoding/geocoding.dart' as geo;
+import 'package:http/http.dart' as http;
+
+import 'booking_page.dart';
+
+const String googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
 
 class GoogleMapPage extends StatefulWidget {
   const GoogleMapPage({super.key});
@@ -14,110 +19,199 @@ class GoogleMapPage extends StatefulWidget {
 }
 
 class _GoogleMapPageState extends State<GoogleMapPage> {
-  final locationController = Location();
-
-  static const googlePlex = LatLng(37.4223, -122.0848);
-  static const mountainView = LatLng(37.3861, -122.0839);
+  final loc.Location locationController = loc.Location();
+  TextEditingController pickupController = TextEditingController();
+  TextEditingController dropOffController = TextEditingController();
 
   LatLng? currentPosition;
+  LatLng? pickupPosition;
+  LatLng? dropOffPosition;
   Map<PolylineId, Polyline> polylines = {};
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) async => await initializeMap());
+    WidgetsBinding.instance.addPostFrameCallback((_) async => await initializeMap());
   }
 
   Future<void> initializeMap() async {
     await fetchLocationUpdates();
-    final coordinates = await fetchPolylinePoints();
-    generatePolyLineFromPoints(coordinates);
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: currentPosition == null
-            ? const Center(child: CircularProgressIndicator())
-            : GoogleMap(
-                initialCameraPosition: const CameraPosition(
-                  target: googlePlex,
-                  zoom: 13,
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Select Pickup & Drop-off'),
+      ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: pickupController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter Pickup Location',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: () async {
+                        pickupPosition = await fetchLocationFromAddress(pickupController.text);
+                        updateMap();
+                      },
+                    ),
+                  ),
                 ),
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('currentLocation'),
-                    icon: BitmapDescriptor.defaultMarker,
-                    position: currentPosition!,
-                  ),
-                  const Marker(
-                    markerId: MarkerId('sourceLocation'),
-                    icon: BitmapDescriptor.defaultMarker,
-                    position: googlePlex,
-                  ),
-                  const Marker(
-                    markerId: MarkerId('destinationLocation'),
-                    icon: BitmapDescriptor.defaultMarker,
-                    position: mountainView,
-                  )
-                },
-                polylines: Set<Polyline>.of(polylines.values),
               ),
-      );
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: dropOffController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter Drop-off Location',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: () async {
+                        dropOffPosition = await fetchLocationFromAddress(dropOffController.text);
+                        updateMap();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 70.0),
+                  child: currentPosition == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: currentPosition!,
+                      zoom: 13,
+                    ),
+                    markers: {
+                      if (currentPosition != null)
+                        Marker(
+                          markerId: const MarkerId('currentLocation'),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                          position: currentPosition!,
+                        ),
+                      if (pickupPosition != null)
+                        Marker(
+                          markerId: const MarkerId('pickupLocation'),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+                          position: pickupPosition!,
+                        ),
+                      if (dropOffPosition != null)
+                        Marker(
+                          markerId: const MarkerId('dropOffLocation'),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                          position: dropOffPosition!,
+                        ),
+                    },
+                    polylines: Set<Polyline>.of(polylines.values),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            bottom: 16.0,
+            right: 16.0,
+            child: FloatingActionButton(
+              onPressed: () {
+                if (pickupPosition != null && dropOffPosition != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BookingPage(
+                        pickupPosition: pickupPosition!,
+                        dropOffPosition: dropOffPosition!,
+                      ),
+                    ),
+                  );
+                } else {
+                  debugPrint('Please select both pickup and drop-off locations');
+                }
+              },
+              child: const Icon(Icons.send),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> fetchLocationUpdates() async {
     bool serviceEnabled;
-    PermissionStatus permissionGranted;
+    loc.PermissionStatus permissionGranted;
 
     serviceEnabled = await locationController.serviceEnabled();
-    if (serviceEnabled) {
+    if (!serviceEnabled) {
       serviceEnabled = await locationController.requestService();
-    } else {
-      return;
-    }
-
-    permissionGranted = await locationController.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await locationController.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) {
+      if (!serviceEnabled) {
         return;
       }
     }
 
-    locationController.onLocationChanged.listen((currentLocation) {
-      if (currentLocation.latitude != null &&
-          currentLocation.longitude != null) {
-        setState(() {
-          currentPosition = LatLng(
-            currentLocation.latitude!,
-            currentLocation.longitude!,
-          );
-        });
+    permissionGranted = await locationController.hasPermission();
+    if (permissionGranted == loc.PermissionStatus.denied) {
+      permissionGranted = await locationController.requestPermission();
+      if (permissionGranted != loc.PermissionStatus.granted) {
+        return;
       }
-    });
+    }
+
+    final currentLocation = await locationController.getLocation();
+    if (currentLocation.latitude != null && currentLocation.longitude != null) {
+      setState(() {
+        currentPosition = LatLng(
+          currentLocation.latitude!,
+          currentLocation.longitude!,
+        );
+      });
+    }
+  }
+
+  Future<LatLng?> fetchLocationFromAddress(String address) async {
+    try {
+      List<geo.Location> locations = await geo.locationFromAddress(address);
+      if (locations.isNotEmpty) {
+        return LatLng(locations.first.latitude, locations.first.longitude);
+      }
+    } catch (e) {
+      debugPrint("Error fetching location: $e");
+    }
+    return null;
+  }
+
+  Future<void> updateMap() async {
+    if (pickupPosition != null && dropOffPosition != null) {
+      final coordinates = await fetchPolylinePoints();
+      generatePolyLineFromPoints(coordinates);
+    }
+
+    setState(() {});
   }
 
   Future<List<LatLng>> fetchPolylinePoints() async {
-    final polylinePoints = PolylinePoints();
+    final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/directions/json?origin=${pickupPosition!.latitude},${pickupPosition!.longitude}&destination=${dropOffPosition!.latitude},${dropOffPosition!.longitude}&key=$googleMapsApiKey&mode=driving');
 
-    final result = await polylinePoints.getRouteBetweenCoordinates(
-      googleMapsApiKey,
-      PointLatLng(googlePlex.latitude, googlePlex.longitude),
-      PointLatLng(mountainView.latitude, mountainView.longitude),
-    );
+    final response = await http.get(url);
+    final data = json.decode(response.body);
 
-    if (result.points.isNotEmpty) {
-      return result.points
-          .map((point) => LatLng(point.latitude, point.longitude))
-          .toList();
+    if (data['routes'].isNotEmpty) {
+      final points = data['routes'][0]['overview_polyline']['points'];
+      return PolylinePoints().decodePolyline(points).map((point) => LatLng(point.latitude, point.longitude)).toList();
     } else {
-      debugPrint(result.errorMessage);
+      debugPrint('No route found');
       return [];
     }
   }
 
-  Future<void> generatePolyLineFromPoints(
-      List<LatLng> polylineCoordinates) async {
+  Future<void> generatePolyLineFromPoints(List<LatLng> polylineCoordinates) async {
     const id = PolylineId('polyline');
 
     final polyline = Polyline(
