@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'google_map_page.dart';
+import 'dashboard_page.dart'; // Import the DashboardPage
 import 'registration_page.dart'; // Import the RegistrationPage
 
 class LoginPage extends StatefulWidget {
@@ -42,10 +42,10 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString('username', _usernameController.text);
         await prefs.setString('access_token', responseData['token'] ?? '');
 
-
+        // Navigate to the DashboardPage
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const GoogleMapPage()),
+          MaterialPageRoute(builder: (context) => const DashboardPage()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
