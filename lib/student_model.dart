@@ -1,11 +1,11 @@
 class Student {
-  int id;
+  int? id;  // Nullable for new students without an id
   String name;
   String idNumber;
   String schoolName;
 
   Student({
-    required this.id,
+    this.id,  // Nullable, used only for updates
     required this.name,
     required this.idNumber,
     required this.schoolName,
@@ -14,19 +14,26 @@ class Student {
   // Factory method to create a Student object from JSON
   factory Student.fromJson(Map<String, dynamic> json) {
     return Student(
-      id: json['id'] ?? 0,  // Assuming 'id' is always present in the backend, but default to 0 if null
-      name: json['name'] ?? 'Unknown',  // Handle null name with a default 'Unknown'
-      idNumber: json['id_number'] ?? 'N/A',  // Handle null id_number with 'N/A'
-      schoolName: json['school_name'] ?? 'Unknown',  // Handle null school_name
+      id: json['id'],  // Parse the id from JSON
+      name: json['name'] ?? 'Unknown',  // Provide default value if name is null
+      idNumber: json['id_number'] ?? 'N/A',  // Handle missing id_number with a default value
+      schoolName: json['school_name'] ?? 'Unknown',  // Provide default value if school_name is null
     );
   }
 
   // Convert the Student object to JSON
   Map<String, dynamic> toJson() {
-    return {
+    final data = {
       'name': name,
       'id_number': idNumber,
       'school_name': schoolName,
     };
+
+    // Include 'id' only if it's not null (useful for updates)
+    if (id != null) {
+      data['id'] = id.toString();
+    }
+
+    return data;
   }
 }

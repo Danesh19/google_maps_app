@@ -18,26 +18,43 @@ class _StudentFormState extends State<StudentForm> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _idNumberController = TextEditingController();
   final TextEditingController _schoolNameController = TextEditingController();
-
   bool _isLoading = false;
+  String? _token;
 
   @override
   void initState() {
     super.initState();
-
     // If we're editing a student, pre-fill the fields
     if (widget.student != null) {
       _nameController.text = widget.student!.name;
       _idNumberController.text = widget.student!.idNumber;
       _schoolNameController.text = widget.student!.schoolName;
     }
+    _getToken();  // Get token once when form is initialized
+  }
+
+  Future<void> _getToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _token = prefs.getString('access_token');
+    });
   }
 
   Future<void> _saveStudent() async {
     // Basic validation to ensure no empty fields
-    if (_nameController.text.trim().isEmpty || _idNumberController.text.trim().isEmpty || _schoolNameController.text.trim().isEmpty) {
+    if (_nameController.text.trim().isEmpty ||
+        _idNumberController.text.trim().isEmpty ||
+        _schoolNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    // Ensure the token is available
+    if (_token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: No access token found. Please log in again.')),
       );
       return;
     }
@@ -46,45 +63,48 @@ class _StudentFormState extends State<StudentForm> {
       _isLoading = true;
     });
 
-    // Create a student object from the form fields
-    final studentData = Student(
-      id: widget.student?.id ?? 0,  // If student is being added, id is 0 (new student)
-      name: _nameController.text.trim(),
-      idNumber: _idNumberController.text.trim(),
-      schoolName: _schoolNameController.text.trim(),
-    );
+    // Check if we're editing an existing student
+    final studentId = widget.student?.id;
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('access_token');
+    final studentData = {
+      'name': _nameController.text.trim(),
+      'id_number': _idNumberController.text.trim(),
+      'school_name': _schoolNameController.text.trim(),
+    };
 
-    // Determine the correct API based on whether the student is new or being edited
-    final String url;
-    if (widget.student != null && widget.student!.id != 0) {
-      // If the student exists (id is not 0), use the edit-student API
-      url = 'http://10.0.2.2:8000/api/parent/edit-student/${studentData.id}/';
-    } else {
-      // If the student is new, use the add-student API
-      url = 'http://10.0.2.2:8000/api/parent/add-student/';
-    }
+    // Determine the API URL for add or edit operation
+    final String url = studentId != null
+        ? 'http://10.0.2.2:8000/api/parent/student/edit/$studentId/'  // Editing an existing student
+        : 'http://10.0.2.2:8000/api/parent/student/add/';  // Adding a new student
 
-    print('Saving student: ${jsonEncode(studentData.toJson())}');
+    print('Saving student: ${jsonEncode(studentData)}');
     print('URL: $url');
 
-    final response = await http.post(
+    // Use PUT for editing and POST for creating a new student
+    final response = await (studentId != null
+        ? http.put(
       Uri.parse(url),
       headers: {
-        'Authorization': 'Token $token',  // Ensure correct authorization
+        'Authorization': 'Token $_token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode(studentData.toJson()),
-    );
+      body: jsonEncode(studentData),
+    )
+        : http.post(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Token $_token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(studentData),
+    ));
 
     print('Response status: ${response.statusCode}');
     print('Response body: ${response.body}');
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       // Call the onSave callback to update the UI
-      widget.onSave(studentData);
+      widget.onSave(Student.fromJson(jsonDecode(response.body)));
 
       // Show confirmation dialog after saving
       showDialog(
@@ -103,8 +123,17 @@ class _StudentFormState extends State<StudentForm> {
           ],
         ),
       );
+    } else if (response.statusCode == 400) {
+      // Handle error responses (like "Student with this ID number already exists.")
+      Map<String, dynamic> errorResponse = jsonDecode(response.body);
+      String errorMessage = errorResponse['message'] is String
+          ? errorResponse['message']
+          : 'Unknown error occurred';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $errorMessage')),
+      );
     } else {
-      // Show error message if saving fails
+      // Handle other errors
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving student: ${response.body}')),
       );
@@ -119,7 +148,9 @@ class _StudentFormState extends State<StudentForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.student == null ? 'Add Student' : 'Edit Student')),
+      appBar: AppBar(
+        title: Text(widget.student == null ? 'Add Student' : 'Edit Student'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
