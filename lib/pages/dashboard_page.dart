@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../student_form.dart';
 import '../student_model.dart';
 import 'google_map_page.dart';
+import 'booking_dashboard_page.dart'; // Import the new BookingsPage
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
@@ -131,7 +132,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())  // Show loading indicator
+          ? const Center(child: CircularProgressIndicator())
           : students.isEmpty
           ? const Center(child: Text('No students found'))
           : ListView.builder(
@@ -151,10 +152,10 @@ class _DashboardPageState extends State<DashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => StudentForm(
-                          student: student,  // Pass student for editing
+                          student: student,
                           onSave: (updatedStudent) {
                             setState(() {
-                              students[index] = updatedStudent;  // Update the student in the list
+                              students[index] = updatedStudent;
                             });
                           },
                         ),
@@ -166,7 +167,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   icon: const Icon(Icons.delete),
                   onPressed: () {
                     if (student.id != null) {
-                      _deleteStudent(student.id!);  // Ensure student ID is not null
+                      _deleteStudent(student.id!);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Error: Cannot delete a student without an ID.')),
@@ -179,16 +180,30 @@ class _DashboardPageState extends State<DashboardPage> {
           );
         },
       ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.book), label: "Bookings"),
+        ],
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const BookingDashboardPage()), // Navigate to BookingsPage
+            );
+          }
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => StudentForm(
-                student: null,  // Pass null for adding a new student
+                student: null,
                 onSave: (newStudent) {
                   setState(() {
-                    students.add(newStudent);  // Add the new student to the list
+                    students.add(newStudent);
                   });
                 },
               ),

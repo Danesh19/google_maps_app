@@ -2,22 +2,26 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-class RegistrationPage extends StatefulWidget {
-  const RegistrationPage({super.key});
+class ParentRegistrationPage extends StatefulWidget {
+  const ParentRegistrationPage({super.key});
 
   @override
-  _RegistrationPageState createState() => _RegistrationPageState();
+  _ParentRegistrationPageState createState() => _ParentRegistrationPageState();
 }
 
-class _RegistrationPageState extends State<RegistrationPage> {
-  final TextEditingController _nameController = TextEditingController();
+class _ParentRegistrationPageState extends State<ParentRegistrationPage> {
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _retypePasswordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _idNumberController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _studentNameController = TextEditingController();
   final TextEditingController _studentIdNumberController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _retypePasswordController = TextEditingController();
+  final TextEditingController _schoolNameController = TextEditingController();
   bool _isLoading = false;
 
   Future<void> _register() async {
@@ -32,29 +36,28 @@ class _RegistrationPageState extends State<RegistrationPage> {
       _isLoading = true;
     });
 
-    final requestBody = jsonEncode({
-      'name': _nameController.text,
+    // Construct the request body as a Map
+    final Map<String, dynamic> requestBody = {
+      'username': _usernameController.text,
+      'password': _passwordController.text,
+      'email': _emailController.text,
+      'first_name': _firstNameController.text,
+      'last_name': _lastNameController.text,
       'id_number': _idNumberController.text,
       'age': _ageController.text,
       'phone_number': _phoneNumberController.text,
       'student_name': _studentNameController.text,
       'student_id_number': _studentIdNumberController.text,
-      'password': _passwordController.text,
-    });
-
-    // Print the JSON request
-    print('Request Body: $requestBody');
+      'school_name': _schoolNameController.text,
+    };
 
     try {
+      // Make sure to JSON encode the request body before sending
       final response = await http.post(
         Uri.parse('http://10.0.2.2:8000/api/register/'),
         headers: {'Content-Type': 'application/json'},
-        body: requestBody,
+        body: jsonEncode(requestBody), // Ensure proper JSON encoding here
       );
-
-      // Print the JSON response
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
 
       final responseData = json.decode(response.body);
 
@@ -89,29 +92,50 @@ class _RegistrationPageState extends State<RegistrationPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
+              controller: _usernameController,
+              decoration: const InputDecoration(labelText: 'Username'),
+            ),
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: _firstNameController,
+              decoration: const InputDecoration(labelText: 'First Name'),
+            ),
+            TextField(
+              controller: _lastNameController,
+              decoration: const InputDecoration(labelText: 'Last Name'),
             ),
             TextField(
               controller: _idNumberController,
-              decoration: const InputDecoration(labelText: 'Identification Number'),
+              decoration: const InputDecoration(labelText: 'ID Number'),
             ),
             TextField(
               controller: _ageController,
               decoration: const InputDecoration(labelText: 'Age'),
+              keyboardType: TextInputType.number,
             ),
             TextField(
               controller: _phoneNumberController,
               decoration: const InputDecoration(labelText: 'Phone Number'),
+              keyboardType: TextInputType.phone,
             ),
+            const SizedBox(height: 20),
+            Text('Student Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             TextField(
               controller: _studentNameController,
-              decoration: const InputDecoration(labelText: 'Student\'s Name'),
+              decoration: const InputDecoration(labelText: 'Student Name'),
             ),
             TextField(
               controller: _studentIdNumberController,
-              decoration: const InputDecoration(labelText: 'Student\'s Identification Number'),
+              decoration: const InputDecoration(labelText: 'Student ID Number'),
             ),
+            TextField(
+              controller: _schoolNameController,
+              decoration: const InputDecoration(labelText: 'School Name'),
+            ),
+            const SizedBox(height: 20),
             TextField(
               controller: _passwordController,
               decoration: const InputDecoration(labelText: 'Password'),

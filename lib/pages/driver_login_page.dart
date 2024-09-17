@@ -2,21 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'driver_dashboard_page.dart';
+import 'driver_registration_page.dart';
 
-import 'dashboard_page.dart'; // Import the DashboardPage
-import 'registration_page.dart'; // Import the RegistrationPage
-
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
-
+class DriverLoginPage extends StatefulWidget {
   @override
-  _LoginPageState createState() => _LoginPageState();
+  _DriverLoginPageState createState() => _DriverLoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _DriverLoginPageState extends State<DriverLoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final String _apiUrl = 'http://10.0.2.2:8000/api/login/';
   bool _isLoading = false;
 
   Future<void> _login() async {
@@ -24,9 +20,11 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = true;
     });
 
+    final String apiUrl = 'http://10.0.2.2:8000/api/driver_login/';
+
     try {
       final response = await http.post(
-        Uri.parse(_apiUrl),
+        Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': _usernameController.text,
@@ -37,15 +35,13 @@ class _LoginPageState extends State<LoginPage> {
       final responseData = json.decode(response.body);
 
       if (response.statusCode == 200 && responseData['status'] == 'success') {
-        // Save the parent user's information
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('username', _usernameController.text);
         await prefs.setString('access_token', responseData['token'] ?? '');
 
-        // Navigate to the DashboardPage
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DashboardPage()),
+          MaterialPageRoute(builder: (context) => DriverDashboardPage()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -66,7 +62,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
+      appBar: AppBar(title: const Text('Driver Login')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -92,10 +88,10 @@ class _LoginPageState extends State<LoginPage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const RegistrationPage()),
+                  MaterialPageRoute(builder: (context) => DriverRegistrationPage()),
                 );
               },
-              child: const Text('Register as a Parent'),
+              child: const Text('Register as a Driver'),
             ),
           ],
         ),
